@@ -154,3 +154,4 @@ try ignore(doit "(+ 1)");false with Failure(x) -> x = "only lambda procedures ca
 doit "(((lambda (x) (lambda (x) (+ x x))) 10) 3)"="6";;
 doit "(let ((x 10)) (let ((x 1045)) (+ x x)))" = "2090";;
 doit "(let ((x 1000)) (((lambda (y) (if (= x y) - +)) 4) 200 100))"="300";;
+

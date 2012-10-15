@@ -32,14 +32,3 @@ match isNum with
 | Some(x) -> parse ((Number(x)::hd)::tl) tail)
 |(_,_) -> failwith "Syntax Error"
 in parse [[]] (toStringList string)
-
-
-let rec racketteRepl parse eval display =
-  Printf.printf "Rackette > " ;
-    (try
-      Printf.printf "%s\n" (display (eval (parse (read (read_line ()))))) 
-    with
-      | e -> (match e with 
-        | Failure(str) -> Printf.printf "Error: %s\n" str
-        | _ -> Printf.printf "Error: %s\n" "Other exception failure" ));
-      (racketteRepl parse eval display)

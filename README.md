@@ -17,6 +17,7 @@ And the result will evaluate to 10.
 
 Expanations
 ========================================================================
+
 - parse: parse takes in a quotedSyntax expression, and translates it into abstractSyntax.
 Base cases translate directly into abstractSynax whereas list cases (e.g. if and let)
 have to be parsed recursively. That is, every element of the list must be parsed down

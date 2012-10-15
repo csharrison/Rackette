@@ -4,13 +4,13 @@ type abstractSyntax =
 | Sym of string | Int of int | Bool of bool
 | Sum | Difference | Quotient | Product 
 (*boolean + comparator stuff*)
-| And | Or | Equal
+| Equal
 (*fancy syntax stuff*)
 | If of abstractSyntax*abstractSyntax*abstractSyntax
 | Let of abstractSyntax*abstractSyntax*abstractSyntax
 | Lambda of abstractSyntax*abstractSyntax
-| Proc of abstractSyntax*abstractSyntax*abstractSyntax (*common operatiosn*)
-| LProc of abstractSyntax*abstractSyntax;; (*procedure that especially designed for procedure within lambda*)
+| Proc of abstractSyntax*abstractSyntax*abstractSyntax (*common operations - built in proc application *)
+| LProc of abstractSyntax*abstractSyntax;; (* anon procedure application *)
 
 (*parse
 	input: a quoted syntax expression from "read"
@@ -24,11 +24,12 @@ let rec parse (input : quotedSyntax) : abstractSyntax =
 		|Symbol("-") -> Difference
 		|Symbol("/") -> Quotient
 		|Symbol("*") -> Product
-		|Symbol("and") -> And
-		|Symbol("or") -> Or
+		(* do some tricky desugaring to get rid of And and Or *)
+		|List([Symbol("and"); x ; y]) -> If(parse x , parse y, Bool(false))
+		|List([Symbol("or") ; x ; y]) -> If(parse x , Bool(true), parse y)
 		|Symbol("=") -> Equal
 		|Number(x) -> Int(x)
-		|List(Number(x)::rest) -> failwith "expected function, got type Integer" (*racket do not take in just a pure list*)
+		|List(Number(x)::rest) -> failwith "expected function, got type Integer"
 		|List([Symbol("if");p;t_clause;e_clause]) -> 
 			If(parse p, parse t_clause, parse e_clause)		
 		(*fancy stuff*)
@@ -44,7 +45,7 @@ let rec parse (input : quotedSyntax) : abstractSyntax =
 parse (read "(lambda (x) (+ x 10))") = Lambda(Sym "x", Proc(Sum,Sym "x", Int 10));;
 parse (read "(let ((x 10)) (+ x 10))") = Let(Sym "x",Int 10, Proc(Sum,Sym "x", Int 10));;
 parse (read "+") = Sum;; parse (read "-") = Difference;; parse (read "/") = Quotient;;
-parse (read "*") = Product;; parse (read "and") = And;;parse (read "or") = Or ;;
+parse (read "*") = Product;;
 parse (read "=") = Equal ;;
 parse (read "3") = Int 3;;
 try ignore(parse (read "(3 3 3)"));false with Failure(x) -> x = "expected function, got type Integer";;
@@ -92,8 +93,6 @@ let rec	eval (input: abstractSyntax) : 'a =
 				|_-> failwith "function got int arguments, expected other types")
 			|(Bool(i),Bool(j)) ->
 				(match p with
-				|And -> Bool(i && j)
-				|Or -> Bool(i || j)
 				|Equal -> Bool (i = j)
 				|_ -> failwith "function got bool args, expected other types")
 			|_ -> failwith "the primitive procedure arguments are not recognized as primitives")
@@ -155,4 +154,3 @@ try ignore(doit "(+ 1)");false with Failure(x) -> x = "only lambda procedures ca
 doit "(((lambda (x) (lambda (x) (+ x x))) 10) 3)"="6";;
 doit "(let ((x 10)) (let ((x 1045)) (+ x x)))" = "2090";;
 doit "(let ((x 1000)) (((lambda (y) (if (= x y) - +)) 4) 200 100))"="300";;
-doit "(((lambda (f) ((lambda (x) (f (lambda (v) ((x x) v)))) (lambda (x) (f (lambda (v) ((x x) v))))))) (lambda (f) lambda (n) (if (= n 0) 1 (* n (f (- n 1)))))))) 5)";;

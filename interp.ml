@@ -1,5 +1,4 @@
 #use "read.ml";;
-
 type abstractSyntax =
 | Sym of string | Int of int | Bool of bool
 | Sum | Difference | Quotient | Product 
@@ -7,11 +6,9 @@ type abstractSyntax =
 | Equal
 (*fancy syntax stuff*)
 | If of abstractSyntax*abstractSyntax*abstractSyntax
-| Let of abstractSyntax*abstractSyntax*abstractSyntax
 | Lambda of abstractSyntax*abstractSyntax
 | Proc of abstractSyntax*abstractSyntax*abstractSyntax (*common operations - built in proc application *)
 | LProc of abstractSyntax*abstractSyntax;; (* anon procedure application *)
-
 (*parse
 	input: a quoted syntax expression from "read"
 	output: the quoted syntax converted to rackettes abstract
@@ -30,31 +27,14 @@ let rec parse (input : quotedSyntax) : abstractSyntax =
 		|Symbol("=") -> Equal
 		|Number(x) -> Int(x)
 		|List(Number(x)::rest) -> failwith "expected function, got type Integer"
-		|List([Symbol("if");p;t_clause;e_clause]) -> 
-			If(parse p, parse t_clause, parse e_clause)		
+		|List([Symbol("if");p;t_clause;e_clause]) -> If(parse p, parse t_clause, parse e_clause)		
 		(*fancy stuff*)
-		|List([Symbol("let"); List[List[id;ex]] ; expr]) ->   
-		  Let(parse id, parse ex, parse expr)              (*let expression*)
+		|List([Symbol("let"); List[List[id;ex]] ; expr]) -> LProc(Lambda(parse id, parse expr), parse ex)
 		|List([Symbol "lambda" ; List([id]); expr]) -> Lambda(parse id, parse expr)  (*lambda expression*)
 		|List[x;y]-> LProc(parse x, parse y) (*this line is written to deal with lambda*)
 		|List([p;x;y])->Proc(parse p,parse x, parse y)
 		|Symbol(s) -> Sym(s)
 		|_ -> failwith "error at parse level!";;
-
-(*test cases*)
-parse (read "(lambda (x) (+ x 10))") = Lambda(Sym "x", Proc(Sum,Sym "x", Int 10));;
-parse (read "(let ((x 10)) (+ x 10))") = Let(Sym "x",Int 10, Proc(Sum,Sym "x", Int 10));;
-parse (read "+") = Sum;; parse (read "-") = Difference;; parse (read "/") = Quotient;;
-parse (read "*") = Product;;
-parse (read "=") = Equal ;;
-parse (read "3") = Int 3;;
-try ignore(parse (read "(3 3 3)"));false with Failure(x) -> x = "expected function, got type Integer";;
-try ignore(parse (read "()"));false with Failure(x) -> x = "error at parse level!";;
-parse (read "(lambda (x) (+ x 10))") = Lambda(Sym "x",Proc(Sum,Sym "x",Int 10));;
-parse (read "(((lambda (x) +) 0) 3 4)") = Proc(LProc(Lambda(Sym "x", Sum),Int 0), Int 3, Int 4);;
-parse (read "(if (= 10 20) 100 200)") = If(Proc(Equal,Int 10, Int 20),Int 100, Int 200);;
-
-
 (*subst: abstractSyntax abstractSyntax abstractSyntax -> abstractSyntax
 input: three expressions of type abstractSyntax, the expression to substitute into
 	the value to substitute, and the new value that the old value changes into
@@ -63,17 +43,12 @@ special cases: let expressions and lambdas give priority to innermost definition
 *)
 let rec subst (expr:abstractSyntax) (old:abstractSyntax) (n:abstractSyntax) : abstractSyntax =
 	match expr with
-		|Int(x) -> Int(x)
-		|Sym(x) -> if Sym(x)=old then n else Sym(x)
+		|Sym(x) -> if expr = old then n else expr
 		|Proc(any,x,y) -> Proc(subst any old n, subst x old n, subst y old n)
 		|LProc(x,y) -> LProc(subst x old n, subst y old n)
 		|If(p,x,y) -> If(subst p old n, subst x old n, subst y old n)
 		|Lambda(id, lexpr) -> if id=old then expr else Lambda(id, subst lexpr old n)
-		|Let(id,ex,y) -> if id=old then     (* let expressions and lambdas give priority to innermost definitions*)
-			Let(id, subst ex old n, y) else
-			Let(id, subst ex old n, subst y old n)
-		|func -> func;;
-
+		|_ -> expr;;
 (*eval: abstractSyntax-> 'a
         Input: an abstractSyntax called input
         Output: evaluate the abstractSyntax according to designed rules, do some calculation and produce the result in a datum of various possible forms *)
@@ -98,7 +73,6 @@ let rec	eval (input: abstractSyntax) : 'a =
 			|_ -> failwith "the primitive procedure arguments are not recognized as primitives")
 		|If(predicate,true_clause,else_clause) -> 
 			if (eval predicate)=Bool(true) then eval true_clause else eval else_clause
-		|Let(id, ex, expr) -> eval (subst expr id ex)
 		|Lambda(id,expr) -> Lambda(id,expr)
 		|LProc(Lambda(id,expr), arg) -> eval (subst expr id (eval arg))
 		|LProc(x,y) -> let hopefully_lambda = (eval x) and arg = (eval y) in   (*evaluate lambda procedure*)
@@ -107,10 +81,7 @@ let rec	eval (input: abstractSyntax) : 'a =
 			|_ -> failwith "only lambda procedures can take one arg!!!")
 		|Sym a -> failwith("error: "^a^" is not defined")
 		|func -> func;;
-(*test cases*)
-eval (parse (read "(if (= 4 4) 100 200)")) = Int 100;;
-eval (parse (read "(if (= 2 4) 100 200)")) = Int 200;;
-eval (parse (read "(if (and (= 100 2) (= 3 3)) (+ 100 200) (- 300 3))")) = Int 297;;
+
 
 (*print: abstractSyntax -> string
 Input: an abstractSyntax 
@@ -121,6 +92,30 @@ let rec print (input:abstractSyntax):string =
 	|Bool(x) -> string_of_bool x
 	|Lambda(Sym(x),expr) -> "(lambda ("^x^")...)"
 	|_-> failwith "input is unprintable";;
+	
+	
+
+(*test cases*)
+eval (parse (read "(if (= 4 4) 100 200)")) = Int 100;;
+eval (parse (read "(if (= 2 4) 100 200)")) = Int 200;;
+eval (parse (read "(if (and (= 100 2) (= 3 3)) (+ 100 200) (- 300 3))")) = Int 297;;
+
+
+
+(*test cases*)
+parse (read "(lambda (x) (+ x 10))") = Lambda(Sym "x", Proc(Sum,Sym "x", Int 10));;
+parse (read "(let ((x 10)) (+ x 10))") = LProc(Lambda(Sym "x", Proc(Sum,Sym "x", Int 10)), Int 10);;
+parse (read "+") = Sum;; parse (read "-") = Difference;; parse (read "/") = Quotient;;
+parse (read "*") = Product;;
+parse (read "=") = Equal ;;
+parse (read "3") = Int 3;;
+try ignore(parse (read "(3 3 3)"));false with Failure(x) -> x = "expected function, got type Integer";;
+try ignore(parse (read "()"));false with Failure(x) -> x = "error at parse level!";;
+parse (read "(lambda (x) (+ x 10))") = Lambda(Sym "x",Proc(Sum,Sym "x",Int 10));;
+parse (read "(((lambda (x) +) 0) 3 4)") = Proc(LProc(Lambda(Sym "x", Sum),Int 0), Int 3, Int 4);;
+parse (read "(if (= 10 20) 100 200)") = If(Proc(Equal,Int 10, Int 20),Int 100, Int 200);;
+
+
 (*test cases*)
 print (Bool true) = "true";;
 print (Int 3) = "3";;

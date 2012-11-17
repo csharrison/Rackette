@@ -11,7 +11,7 @@ type expr =
 (*fancy syntax stuff*)
 | If of expr * expr * expr
 | Lambda of (string list) * expr
-| Define of string * (string list) * expr
+| Define of string * expr
 | Prim2 of string * expr * expr (*common operations - built in proc application *)
 | Prim1 of string * expr
 | App of expr * (expr list);; (* one arg procedure application *)
@@ -26,13 +26,6 @@ value = (* what exps evaluate to *)
 |ConsV of value * value
 |EmptyV
 |SuspendV of expr * env;;
-
-let make_prim2 str = (str, ClosureV(["x";"y"], Prim2(str, Sym("x"), Sym("y")), []));;
-let make_prim1 str = (str, ClosureV(["x"], Prim1(str, Sym("x")), []));;
-
-let global_env = ref
-((List.map make_prim2 ["+";"-";"*";"/";"="])@
-(List.map make_prim1 ["first";"rest"; "not"]));;
 
 let extract_ids sym_lst : (string list) = 
 	let extract s = match s with
@@ -54,7 +47,10 @@ let rec parse ?(g = false) (input : quotedSyntax) : expr =
 		              |any -> Sym(any))
 		(* do some tricky desugaring to get rid of And and Or *)
 		|List([Symbol("define") ; List(Symbol(func)::ids) ; body])->
-			Define(func, extract_ids ids, parse body)
+			Define(func, Lambda(extract_ids ids, parse body))
+		|List([Symbol("define") ; Symbol(name) ; expr]) ->
+			Define(name, parse expr)
+		|List(Symbol("list")::tl) -> List.fold_right (fun x r -> Cons(parse x,r)) tl Empty
 		|List([Symbol("cons"); x; y]) -> Cons(parse x, parse y)
 		|List([Symbol("and"); x ; y]) -> If(parse x , parse y, Bool(false))
 		|List([Symbol("or") ; x ; y]) -> If(parse x , Bool(true), parse y)
@@ -70,6 +66,15 @@ let rec parse ?(g = false) (input : quotedSyntax) : expr =
 		|_ -> failwith "error at parse level!";;
 
 
+let make_prim2 str = (str, ClosureV(["x";"y"], Prim2(str, Sym("x"), Sym("y")), []));;
+let make_prim1 str = (str, ClosureV(["x"], Prim1(str, Sym("x")), []));;
+
+let global_env = ref
+((List.map make_prim2 ["+";"-";"*";"/";"="])@
+(List.map make_prim1 ["first";"rest"; "print";"empty?"; "cons?"; "not"]));;
+
+
+
 let rec lookup (id : string) (environment : env) : value option = 
 	match environment with
 	|[] -> None
@@ -81,14 +86,14 @@ let extend_environment (environ : env) (id : string) (v : value) =
 
 (* given a value (possibly suspended computation),
  strict forces full evaluation to a "normal" value *)
-let rec strict (v : value) : value =
+let rec strict ?(really=false) (v : value) : value =
 	match v with
 	|NumV(x) -> v
 	|BoolV(x) -> v
 	|ClosureV(ids, ex, e) -> v
-	|ConsV(x,y) -> ConsV(strict x, strict y)
+	|ConsV(x,y) -> ConsV(strict ~really:really x, if really then strict ~really:true y else y)
 	|EmptyV -> v
-	|SuspendV(body, e) -> strict (eval body e)
+	|SuspendV(body, e) -> strict ~really:really (eval body e)
 (*eval: abstractSyntax-> 'a
     Input: an abstractSyntax called input
     Output: evaluate the abstractSyntax according to designed rules, do some calculation and produce the result in a datum of various possible forms 
@@ -102,15 +107,23 @@ and	eval (input: expr) (e : env) : value =
 								|None -> failwith ("unbound identifier "^a)
 								|Some(v) -> v)
 					|Some(v) -> v)
-		|Cons(x,y) -> ConsV(eval x e, eval y e)
+		|Cons(x,y) -> ConsV(eval x e, SuspendV(y, e))
 		|Empty -> EmptyV
 		|Prim1(p, x) -> 
 			(match strict (eval x e) with
+				|EmptyV ->
+					(match p with
+						|"empty?" -> BoolV(true)
+						|"cons?" -> BoolV(false)
+						|_ -> failwith "bad primop for empty list")
 				|ConsV(first,rest) ->
 					(match p with
 						|"first" -> first
 						|"rest" -> rest
-						|_ -> failwith "bad primop for lists")
+						|"empty?" -> BoolV(false)
+						|"cons?" -> BoolV(true)
+						|"print" -> ConsV(strict ~really:true first, strict ~really:true rest)
+						|rest -> failwith "bad primop for lists")
 				|BoolV(v) ->
 					(match p with
 						|"not" -> BoolV(not v)
@@ -134,15 +147,23 @@ and	eval (input: expr) (e : env) : value =
 		|If(predicate,true_clause,else_clause) -> 
 			if (eval predicate e)=BoolV(true) then eval true_clause e else eval else_clause e
 		|Lambda(id_lst,expr) -> ClosureV(id_lst,expr,e)
-		|Define(name, id_lst, expr) -> 
-			let clo = ClosureV(id_lst, expr, e) in
-			(begin global_env := (name, clo)::!global_env ; clo end)
+		|Define(name, expr) -> 
+			let value = (eval expr e) in
+			(begin global_env := (name, value)::!global_env ; value end)
 		|App(func, args) -> 
 			(match strict (eval func e) with
 			|ClosureV(ids,body,clos_env) -> 
 				let new_environment = (List.map2 (fun x y -> (x, SuspendV(y,e))) ids args)@clos_env in 
 				eval body new_environment
 			|_ -> failwith "only lambda procedures can take one arg!!!");;
+
+
+let map = eval (parse (read"(define (map fun lst) (if (empty? lst) empty (cons (fun (first lst)) (map fun (rest lst)))))")) [];;
+let map2 = eval (parse (read "(define (map2 fun lst1 lst2) (if (empty? lst1) empty (cons (fun (first lst1) (first lst2)) (map2 fun (rest lst1) (rest lst2)))))")) [];;
+
+let take = eval (parse (read "(define (take n lst) (if (= 0 n) empty (cons (first lst) (take (- n 1) (rest lst)))))")) [];;
+
+let fibs = eval (parse (read "(define fibs (cons 0 (cons 1 (map2 + fibs (rest fibs)))))")) [];;
 
 (*print: abstractSyntax -> string
 Input: an abstractSyntax 
@@ -169,14 +190,14 @@ let interp (input:string) : string =
 	print true (eval (parse (read input)) []);;
 let rec racketteRepl parse eval display =
   Printf.printf "Rackette > " ;
-    (try
+    (*(try*)
 	match read_line () with
 	|"exit" -> exit 1
 	|line -> Printf.printf "%s\n" (display (eval (parse (read line)) [])) 
-    with
+    (*with
       | e -> (match e with 
         | Failure(str) -> Printf.printf "Error: %s\n" str
-        | _ -> Printf.printf "Error: %s\n" "Other exception failure" ));
+        | _ -> Printf.printf "Error: %s\n" "Other exception failure" ));*);
       (racketteRepl parse eval display);;
 
 let repl suspend = racketteRepl parse eval (print suspend);;

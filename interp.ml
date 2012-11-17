@@ -9,31 +9,52 @@ type abstractSyntax =
 | Lambda of abstractSyntax*abstractSyntax
 | Proc of abstractSyntax*abstractSyntax*abstractSyntax (*common operations - built in proc application *)
 | LProc of abstractSyntax*abstractSyntax;; (* anon procedure application *)
+
+(*
+let id = ref 0 in 
+let make_id : int = 
+    begin
+        id := !id + 1 ; 
+        !id
+    end ;;
+*)
+let rec 
+    cascade_lambdas (id_lst :  quotedSyntax list) (body : quotedSyntax) : abstractSyntax = 
+    match id_lst with
+    |[] -> failwith "no thunks yet"
+    |[one] -> Lambda(parse one, parse body)
+    |hd::tl -> Lambda(parse hd, cascade_lambdas tl body)
+(*
+    ((lambda (x y) (+ x y)) 10 20) ->
+    (((lambda (x) (lambda (y) (+ x y))) 10) 20)
+*)
 (*parse
 	input: a quoted syntax expression from "read"
 	output: the quoted syntax converted to rackettes abstract
 	internal representation*)
-let rec parse (input : quotedSyntax) : abstractSyntax =
+and parse (input : quotedSyntax) : abstractSyntax =
 	match input with
-		|Symbol("true")->Bool(true)
-		|Symbol("false") -> Bool(false)
-		|Symbol("+") -> Sum
-		|Symbol("-") -> Difference
-		|Symbol("/") -> Quotient
-		|Symbol("*") -> Product
+		|Number(x) -> Int(x)
+		|Symbol(s) ->(match s with
+		              |"true" -> Bool(true)
+		              |"false" -> Bool(false)
+		              |"=" -> Equal
+		              |"+" -> Sum
+		              |"-" -> Difference
+		              |"/" -> Quotient
+		              |"*" -> Product
+		              |any -> Sym(any))
 		(* do some tricky desugaring to get rid of And and Or *)
 		|List([Symbol("and"); x ; y]) -> If(parse x , parse y, Bool(false))
 		|List([Symbol("or") ; x ; y]) -> If(parse x , Bool(true), parse y)
-		|Symbol("=") -> Equal
-		|Number(x) -> Int(x)
-		|List(Number(x)::rest) -> failwith "expected function, got type Integer"
 		|List([Symbol("if");p;t_clause;e_clause]) -> If(parse p, parse t_clause, parse e_clause)		
 		(*fancy stuff*)
+		|List([Symbol "lambda" ; List([id]); expr]) -> Lambda(parse id, parse expr)(* cascade_lambdas ids expr lambda expression*)
 		|List([Symbol("let"); List[List[id;ex]] ; expr]) -> LProc(Lambda(parse id, parse expr), parse ex)
-		|List([Symbol "lambda" ; List([id]); expr]) -> Lambda(parse id, parse expr)  (*lambda expression*)
-		|List[x;y]-> LProc(parse x, parse y) (*this line is written to deal with lambda*)
+		(* to deal with lambda application and Prim application*)
+		|List(Number(x)::rest) -> failwith "expected function, got type Integer"
+		|List[x;y]-> LProc(parse x, parse y)
 		|List([p;x;y])->Proc(parse p,parse x, parse y)
-		|Symbol(s) -> Sym(s)
 		|_ -> failwith "error at parse level!";;
 (*subst: abstractSyntax abstractSyntax abstractSyntax -> abstractSyntax
 input: three expressions of type abstractSyntax, the expression to substitute into
@@ -56,21 +77,20 @@ let rec	eval (input: abstractSyntax) : 'a =
 	match input with
 		|Int(x) -> Int(x)
 		|Bool (x)  -> Bool (x)		
-		|Proc(p,x,y) -> let xeval = (eval x) and yeval = (eval y) in
-			(match (xeval,yeval) with
-			|(Int(i),Int(j)) -> 
-				(match eval p with
-				|Sum -> Int(i+j)
-				|Difference -> Int(i-j)
-				|Product -> Int(i*j)
-				|Quotient -> Int(i/j)
-				|Equal -> Bool(i=j)
-				|_-> failwith "function got int arguments, expected other types")
-			|(Bool(i),Bool(j)) ->
-				(match p with
-				|Equal -> Bool (i = j)
-				|_ -> failwith "function got bool args, expected other types")
-			|_ -> failwith "the primitive procedure arguments are not recognized as primitives")
+		|Proc(p,x,y) -> (match (eval x,eval y) with
+			            |(Int(i),Int(j)) -> 
+				            (match eval p with
+				            |Sum -> Int(i+j)
+				            |Difference -> Int(i-j)
+				            |Product -> Int(i*j)
+				            |Quotient -> Int(i/j)
+				            |Equal -> Bool(i=j)
+				            |_-> failwith "function got int arguments, expected other types")
+			            |(Bool(i),Bool(j)) ->
+				            (match p with
+				            |Equal -> Bool (i = j)
+				            |_ -> failwith "function got bool args, expected other types")
+			            |_ -> failwith "the primitive procedure arguments are not recognized as primitives")
 		|If(predicate,true_clause,else_clause) -> 
 			if (eval predicate)=Bool(true) then eval true_clause else eval else_clause
 		|Lambda(id,expr) -> Lambda(id,expr)

@@ -6,12 +6,15 @@ type expr =
 | Int of int 
 | Bool of bool
 (*boolean + comparator stuff*)
-| Binop of string (* string = / + * - *)
+| Cons of expr * expr
+| Empty
 (*fancy syntax stuff*)
-| If of expr*expr*expr
-| Lambda of string*expr
-| Proc of expr*expr*expr (*common operations - built in proc application *)
-| LProc of expr*expr;; (* anon procedure application *)
+| If of expr * expr * expr
+| Lambda of (string list) * expr
+| Define of string * (string list) * expr
+| Prim2 of string * expr * expr (*common operations - built in proc application *)
+| Prim1 of string * expr
+| App of expr * (expr list);; (* one arg procedure application *)
 
 type 
 env = (string*value) list 
@@ -19,43 +22,58 @@ and
 value = (* what exps evaluate to *)
 |NumV of int
 |BoolV of bool
-|ClosureV of string*expr*env
-|BinopV of string
-|SuspendV of expr*env;;
+|ClosureV of (string list) * expr * env
+|ConsV of value * value
+|EmptyV
+|SuspendV of expr * env;;
+
+let make_prim2 str = (str, ClosureV(["x";"y"], Prim2(str, Sym("x"), Sym("y")), []));;
+let make_prim1 str = (str, ClosureV(["x"], Prim1(str, Sym("x")), []));;
+
+let global_env = ref
+((List.map make_prim2 ["+";"-";"*";"/";"="])@
+(List.map make_prim1 ["first";"rest"; "not"]));;
+
+let extract_ids sym_lst : (string list) = 
+	let extract s = match s with
+	|Symbol(str) -> str
+	|_ -> failwith "lambda expects a list of ids" in
+	List.map extract sym_lst;;
 
 (*parse
 	input: a quoted syntax expression from "read"
 	output: the quoted syntax converted to rackettes abstract
 	internal representation *)
-let rec parse (input : quotedSyntax) : expr =
+let rec parse ?(g = false) (input : quotedSyntax) : expr =
 	match input with
 		|Number(x) -> Int(x)
 		|Symbol(s) ->(match s with
 		              |"true" -> Bool(true)
 		              |"false" -> Bool(false)
-		              |"=" -> Binop("=")
-		              |"+" -> Binop("+")
-		              |"-" -> Binop("-")
-		              |"/" -> Binop("/")
-		              |"*" -> Binop("*")
+		              |"empty" -> Empty
 		              |any -> Sym(any))
 		(* do some tricky desugaring to get rid of And and Or *)
+		|List([Symbol("define") ; List(Symbol(func)::ids) ; body])->
+			Define(func, extract_ids ids, parse body)
+		|List([Symbol("cons"); x; y]) -> Cons(parse x, parse y)
 		|List([Symbol("and"); x ; y]) -> If(parse x , parse y, Bool(false))
 		|List([Symbol("or") ; x ; y]) -> If(parse x , Bool(true), parse y)
 		|List([Symbol("if");p;t_clause;e_clause]) -> If(parse p, parse t_clause, parse e_clause)		
 		(*fancy stuff*)
-		|List([Symbol "lambda" ; List([Symbol(id)]); expr]) -> Lambda(id, parse expr)(* cascade_lambdas ids expr lambda expression*)
-		|List([Symbol("let"); List[List[Symbol(id);ex]] ; expr]) -> LProc(Lambda(id, parse expr), parse ex)
+		|List([Symbol "lambda" ; List(sym_lst); expr]) -> 
+			Lambda(extract_ids sym_lst, parse expr)
+		|List([Symbol("let"); List[List[Symbol(id);ex]] ; expr]) -> 
+			App(Lambda([id], parse expr),[parse ex])
 		(* to deal with lambda application and Prim application*)
 		|List(Number(x)::rest) -> failwith "expected function, got type Integer"
-		|List[x;y]-> LProc(parse x, parse y)
-		|List([p;x;y])->Proc(parse p,parse x, parse y)
+		|List(func::args) -> App(parse func, List.map parse args)
 		|_ -> failwith "error at parse level!";;
 
-let rec lookup (id : string) (environment : env) : value = 
+
+let rec lookup (id : string) (environment : env) : value option = 
 	match environment with
-	|[] -> failwith ("unbound identifier: "^id)
-	|(ident , v)::tl -> if id = ident then v else lookup id tl;;
+	|[] -> None
+	|(ident , v)::tl -> if id = ident then Some(v) else lookup id tl;;
 
 let extend_environment (environ : env) (id : string) (v : value) =
 	(id, v)::environ;;
@@ -67,8 +85,9 @@ let rec strict (v : value) : value =
 	match v with
 	|NumV(x) -> v
 	|BoolV(x) -> v
-	|ClosureV(id, ex, e) -> v
-	|BinopV(s) -> v
+	|ClosureV(ids, ex, e) -> v
+	|ConsV(x,y) -> ConsV(strict x, strict y)
+	|EmptyV -> v
 	|SuspendV(body, e) -> strict (eval body e)
 (*eval: abstractSyntax-> 'a
     Input: an abstractSyntax called input
@@ -78,29 +97,51 @@ and	eval (input: expr) (e : env) : value =
 	match input with
 		|Int(x) -> NumV(x)
 		|Bool (x) -> BoolV(x)
-		|Sym a -> lookup a e
-		|Binop(s) -> BinopV(s)
-		|Proc(p,x,y) -> 
+		|Sym a -> (match lookup a e with
+					|None -> (match lookup a !global_env with
+								|None -> failwith ("unbound identifier "^a)
+								|Some(v) -> v)
+					|Some(v) -> v)
+		|Cons(x,y) -> ConsV(eval x e, eval y e)
+		|Empty -> EmptyV
+		|Prim1(p, x) -> 
+			(match strict (eval x e) with
+				|ConsV(first,rest) ->
+					(match p with
+						|"first" -> first
+						|"rest" -> rest
+						|_ -> failwith "bad primop for lists")
+				|BoolV(v) ->
+					(match p with
+						|"not" -> BoolV(not v)
+						|_ -> failwith "bad primop for booleans")
+				|_ -> failwith "bad arguments for prim func")
+		|Prim2(p,x,y) -> 
 			(match (strict (eval x e),strict (eval y e)) with
             |(NumV(i),NumV(j)) -> 
-	            (match eval p e with
-	            |BinopV("+") -> NumV(i+j)
-	            |BinopV("-") -> NumV(i-j)
-	            |BinopV("*") -> NumV(i*j)
-	            |BinopV("/") -> NumV(i/j)
-	            |BinopV("=") -> BoolV(i=j)
+	            (match p with
+	            |"+" -> NumV(i+j)
+	            |"-" -> NumV(i-j)
+	            |"*" -> NumV(i*j)
+	            |"/" -> NumV(i/j)
+	            |"=" -> BoolV(i=j)
 	            |_-> failwith "function got int arguments, expected other types")
             |(BoolV(i),BoolV(j)) ->
-	            (match eval p e with
-	            |BinopV("=") -> BoolV(i = j)
+	            (match p with
+	            |"="-> BoolV(i = j)
 	            |_ -> failwith "function got bool args, expected other types")
             |_ -> failwith "the primitive procedure arguments are not recognized as primitives")
 		|If(predicate,true_clause,else_clause) -> 
 			if (eval predicate e)=BoolV(true) then eval true_clause e else eval else_clause e
-		|Lambda(id,expr) -> ClosureV(id,expr,e)
-		|LProc(x,arg) -> 
-			(match strict (eval x e) with
-			|ClosureV(id,body,clos_env) -> eval body (extend_environment clos_env id (SuspendV(arg, e)))
+		|Lambda(id_lst,expr) -> ClosureV(id_lst,expr,e)
+		|Define(name, id_lst, expr) -> 
+			let clo = ClosureV(id_lst, expr, e) in
+			(begin global_env := (name, clo)::!global_env ; clo end)
+		|App(func, args) -> 
+			(match strict (eval func e) with
+			|ClosureV(ids,body,clos_env) -> 
+				let new_environment = (List.map2 (fun x y -> (x, SuspendV(y,e))) ids args)@clos_env in 
+				eval body new_environment
 			|_ -> failwith "only lambda procedures can take one arg!!!");;
 
 (*print: abstractSyntax -> string
@@ -110,11 +151,14 @@ let rec print  suspend(input:value) :string =
 	match input with
 	|NumV(x) -> string_of_int x
 	|BoolV(x) -> string_of_bool x
-	|ClosureV(x,expr,e) -> "(lambda ("^x^")...)"
-	|SuspendV(b, e) -> if suspend then"...suspended computation..."
+	|ClosureV(ids,expr,e) -> "(lambda ("^(List.fold_right (^) ids "")^")...)"
+	|SuspendV(b, e) -> if suspend then"<suspend>"
 						else print suspend (strict input) 
-	|BinopV(s) -> s;;
-	
+	|ConsV(x,y) -> "(cons "^(print suspend x)^" "^(match y with
+				|EmptyV -> (print suspend y)
+				|ConsV(a,b) -> (print suspend y)
+				|other -> ". "^(print suspend other))^")"
+	|EmptyV -> "empty";;	
 	
 
 (* interp: string -> string
@@ -135,7 +179,7 @@ let rec racketteRepl parse eval display =
         | _ -> Printf.printf "Error: %s\n" "Other exception failure" ));
       (racketteRepl parse eval display);;
 
-let repl suspend = racketteRepl parse eval (print suspend) 
+let repl suspend = racketteRepl parse eval (print suspend);;
 
 interp "((let ((x (lambda (x) (+ x x)))) x) 3)" = "6";;
 interp "((if (= 2 2) (lambda (x) (+ 3 x)) *) 5)" = "8";;

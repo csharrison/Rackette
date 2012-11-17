@@ -1,5 +1,5 @@
 #use "read.ml";;
-#use "interp.ml";;
+#use "lambda-interp.ml";;
 
 let rec racketteRepl parse eval display =
   Printf.printf "Rackette > " ;

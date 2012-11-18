@@ -25,6 +25,7 @@ value = (* what exps evaluate to *)
 |ClosureV of (string list) * expr * env
 |ConsV of value * value
 |EmptyV
+|ComputedV of value ref
 |SuspendV of expr * env;;
 
 let extract_ids sym_lst : (string list) = 
@@ -93,7 +94,14 @@ let rec strict ?(really=false) (v : value) : value =
 	|ClosureV(ids, ex, e) -> v
 	|ConsV(x,y) -> ConsV(strict ~really:really x, if really then strict ~really:true y else y)
 	|EmptyV -> v
-	|SuspendV(body, e) -> strict ~really:really (eval body e)
+	|ComputedV(value_ref) -> 
+		(match !value_ref with
+		|SuspendV(b,e) -> 
+			begin
+				value_ref := strict ~really:really (eval b e); !value_ref
+			end
+		|other -> other)
+	|SuspendV(body, e) -> failwith "SuspendV should be wraped in a ComputedV"
 (*eval: abstractSyntax-> 'a
     Input: an abstractSyntax called input
     Output: evaluate the abstractSyntax according to designed rules, do some calculation and produce the result in a datum of various possible forms 
@@ -107,7 +115,7 @@ and	eval (input: expr) (e : env) : value =
 								|None -> failwith ("unbound identifier "^a)
 								|Some(v) -> v)
 					|Some(v) -> v)
-		|Cons(x,y) -> ConsV(eval x e, SuspendV(y, e))
+		|Cons(x,y) -> ConsV(eval x e, ComputedV(ref (SuspendV(y, e))))
 		|Empty -> EmptyV
 		|Prim1(p, x) -> 
 			(match strict (eval x e) with
@@ -153,17 +161,18 @@ and	eval (input: expr) (e : env) : value =
 		|App(func, args) -> 
 			(match strict (eval func e) with
 			|ClosureV(ids,body,clos_env) -> 
-				let new_environment = (List.map2 (fun x y -> (x, SuspendV(y,e))) ids args)@clos_env in 
+				let new_environment = (List.map2 (fun x y -> (x, ComputedV(ref (SuspendV(y,e))))) ids args)@clos_env in 
 				eval body new_environment
 			|_ -> failwith "only lambda procedures can take one arg!!!");;
 
 
 let map = eval (parse (read"(define (map fun lst) (if (empty? lst) empty (cons (fun (first lst)) (map fun (rest lst)))))")) [];;
 let map2 = eval (parse (read "(define (map2 fun lst1 lst2) (if (empty? lst1) empty (cons (fun (first lst1) (first lst2)) (map2 fun (rest lst1) (rest lst2)))))")) [];;
-
 let take = eval (parse (read "(define (take n lst) (if (= 0 n) empty (cons (first lst) (take (- n 1) (rest lst)))))")) [];;
-
 let fibs = eval (parse (read "(define fibs (cons 0 (cons 1 (map2 + fibs (rest fibs)))))")) [];;
+
+let nth = eval (parse (read "(define (nth lst n) (if (= n 0) (first lst) (nth (rest lst) (- n 1))))")) [];;
+
 
 (*print: abstractSyntax -> string
 Input: an abstractSyntax 
@@ -173,14 +182,11 @@ let rec print  suspend(input:value) :string =
 	|NumV(x) -> string_of_int x
 	|BoolV(x) -> string_of_bool x
 	|ClosureV(ids,expr,e) -> "(lambda ("^(List.fold_right (^) ids "")^")...)"
-	|SuspendV(b, e) -> if suspend then"<suspend>"
-						else print suspend (strict input) 
-	|ConsV(x,y) -> "(cons "^(print suspend x)^" "^(match y with
-				|EmptyV -> (print suspend y)
-				|ConsV(a,b) -> (print suspend y)
-				|other -> ". "^(print suspend other))^")"
+	|SuspendV(b, e) -> if suspend then"<suspend computation>" else print suspend (strict input) 
+	|ConsV(x,y) -> "(cons "^(print suspend x)^" "^(print suspend y)^")"
+	|ComputedV(v) -> print suspend (!v)
 	|EmptyV -> "empty";;	
-	
+
 
 (* interp: string -> string
 input: a string that is a quoted expression in the Racket expression
@@ -190,14 +196,14 @@ let interp (input:string) : string =
 	print true (eval (parse (read input)) []);;
 let rec racketteRepl parse eval display =
   Printf.printf "Rackette > " ;
-    (*(try*)
+    (try
 	match read_line () with
 	|"exit" -> exit 1
 	|line -> Printf.printf "%s\n" (display (eval (parse (read line)) [])) 
-    (*with
+    with
       | e -> (match e with 
         | Failure(str) -> Printf.printf "Error: %s\n" str
-        | _ -> Printf.printf "Error: %s\n" "Other exception failure" ));*);
+        | _ -> Printf.printf "Error: %s\n" "Other exception failure" ));
       (racketteRepl parse eval display);;
 
 let repl suspend = racketteRepl parse eval (print suspend);;

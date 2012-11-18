@@ -115,7 +115,7 @@ and	eval (input: expr) (e : env) : value =
 								|None -> failwith ("unbound identifier "^a)
 								|Some(v) -> v)
 					|Some(v) -> v)
-		|Cons(x,y) -> ConsV(eval x e, ComputedV(ref (SuspendV(y, e))))
+		|Cons(x,y) -> ConsV(ComputedV(ref (SuspendV (x, e))), ComputedV(ref (SuspendV(y, e))))
 		|Empty -> EmptyV
 		|Prim1(p, x) -> 
 			(match strict (eval x e) with
@@ -123,6 +123,7 @@ and	eval (input: expr) (e : env) : value =
 					(match p with
 						|"empty?" -> BoolV(true)
 						|"cons?" -> BoolV(false)
+						|"print" -> EmptyV
 						|_ -> failwith "bad primop for empty list")
 				|ConsV(first,rest) ->
 					(match p with
@@ -166,25 +167,33 @@ and	eval (input: expr) (e : env) : value =
 			|_ -> failwith "only lambda procedures can take one arg!!!");;
 
 
-let map = eval (parse (read"(define (map fun lst) (if (empty? lst) empty (cons (fun (first lst)) (map fun (rest lst)))))")) [];;
+let map  = eval (parse (read"(define (map fun lst) (if (empty? lst) empty (cons (fun (first lst)) (map fun (rest lst)))))")) [];;
 let map2 = eval (parse (read "(define (map2 fun lst1 lst2) (if (empty? lst1) empty (cons (fun (first lst1) (first lst2)) (map2 fun (rest lst1) (rest lst2)))))")) [];;
 let take = eval (parse (read "(define (take n lst) (if (= 0 n) empty (cons (first lst) (take (- n 1) (rest lst)))))")) [];;
+let take = eval (parse (read "(define (drop n lst) (if (= 0 n) lst (drop (- n 1) (rest lst))))")) [];;
 let fibs = eval (parse (read "(define fibs (cons 0 (cons 1 (map2 + fibs (rest fibs)))))")) [];;
-
-let nth = eval (parse (read "(define (nth lst n) (if (= n 0) (first lst) (nth (rest lst) (- n 1))))")) [];;
-
+let nth  = eval (parse (read "(define (nth lst n) (if (= n 0) (first lst) (nth (rest lst) (- n 1))))")) [];;
+let range = eval (parse (read "(define (range s n) (if (= s n) empty (cons s (range (+ s 1) n))))")) [];;
+let add1 = eval (parse (read "(define (add1 n) (+ n 1))")) [];;
+let sub1 = eval (parse (read "(define (sub1 n) (- n 1))")) [];;
 
 (*print: abstractSyntax -> string
 Input: an abstractSyntax 
 output: add quotes to the input*)
-let rec print  suspend(input:value) :string =
+let rec print (input:value) :string =
 	match input with
 	|NumV(x) -> string_of_int x
 	|BoolV(x) -> string_of_bool x
-	|ClosureV(ids,expr,e) -> "(lambda ("^(List.fold_right (^) ids "")^")...)"
-	|SuspendV(b, e) -> if suspend then"<suspend computation>" else print suspend (strict input) 
-	|ConsV(x,y) -> "(cons "^(print suspend x)^" "^(print suspend y)^")"
-	|ComputedV(v) -> print suspend (!v)
+	|ClosureV(ids,expr,e) -> "(lambda ( "^(List.fold_right (fun x r -> x^" "^r) ids "")^")...)"
+	|SuspendV(b, e) -> "<~suspended~>"
+	|ConsV(x,y) -> 
+		let rec p v = 
+		(match v with
+		|ConsV(f,r) -> (print f)^" "^(p r)
+		|EmptyV -> ")"
+		|ComputedV(v) -> p (!v)
+		|other -> ". "^(print other)^")") in "(list "^(p input)
+	|ComputedV(v) -> print (!v)
 	|EmptyV -> "empty";;	
 
 
@@ -193,20 +202,21 @@ input: a string that is a quoted expression in the Racket expression
 output: the result that is expected to be given by Racket with quotes  
 interp: basically a program writte in ocaml to imitate Racket language*)
 let interp (input:string) : string =
-	print true (eval (parse (read input)) []);;
+	print (eval (parse (read input)) []);;
 let rec racketteRepl parse eval display =
   Printf.printf "Rackette > " ;
-    (try
+    (*(try*)
 	match read_line () with
 	|"exit" -> exit 1
 	|line -> Printf.printf "%s\n" (display (eval (parse (read line)) [])) 
-    with
+    (*with
       | e -> (match e with 
         | Failure(str) -> Printf.printf "Error: %s\n" str
-        | _ -> Printf.printf "Error: %s\n" "Other exception failure" ));
+        | _ -> Printf.printf "Error: %s\n" "Other exception failure" ))*);
       (racketteRepl parse eval display);;
 
-let repl suspend = racketteRepl parse eval (print suspend);;
+let repl = (fun ()-> racketteRepl parse eval print);;
+
 
 interp "((let ((x (lambda (x) (+ x x)))) x) 3)" = "6";;
 interp "((if (= 2 2) (lambda (x) (+ 3 x)) *) 5)" = "8";;
@@ -215,6 +225,6 @@ interp "(((lambda (x) +) 16) 5 6)" = "11";;
 interp "(((lambda (x) (lambda (x) (+ x x))) 10) 3)"="6";;
 interp "(let ((x 10)) (let ((x 1045)) (+ x x)))" = "2090";;
 interp "(let ((x 1000)) (((lambda (y) (if (= x y) - +)) 4) 200 100))"="300";;
-
-
 interp "((lambda (x) ((lambda (y) y) 10)) (+ 4 true))";;
+
+repl ();;

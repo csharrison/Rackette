@@ -71,7 +71,7 @@ let make_prim2 str = (str, ClosureV(["x";"y"], Prim2(str, Sym("x"), Sym("y")), [
 let make_prim1 str = (str, ClosureV(["x"], Prim1(str, Sym("x")), []));;
 
 let global_env = ref
-((List.map make_prim2 ["+";"-";"*";"/";"="])@
+((List.map make_prim2 ["+";"-";"*";"/";"="; "<"; ">"])@
 (List.map make_prim1 ["first";"rest"; "print";"empty?"; "cons?"; "not"]));;
 
 
@@ -146,6 +146,8 @@ and	eval (input: expr) (e : env) : value =
 	            |"-" -> NumV(i-j)
 	            |"*" -> NumV(i*j)
 	            |"/" -> NumV(i/j)
+	            |"<" -> BoolV(i<j)
+	            |">" -> BoolV(i>j)
 	            |"=" -> BoolV(i=j)
 	            |_-> failwith "function got int arguments, expected other types")
             |(BoolV(i),BoolV(j)) ->
@@ -166,17 +168,6 @@ and	eval (input: expr) (e : env) : value =
 				eval body new_environment
 			|_ -> failwith "only lambda procedures can take one arg!!!");;
 
-
-let map  = eval (parse (read"(define (map fun lst) (if (empty? lst) empty (cons (fun (first lst)) (map fun (rest lst)))))")) [];;
-let map2 = eval (parse (read "(define (map2 fun lst1 lst2) (if (empty? lst1) empty (cons (fun (first lst1) (first lst2)) (map2 fun (rest lst1) (rest lst2)))))")) [];;
-let take = eval (parse (read "(define (take n lst) (if (= 0 n) empty (cons (first lst) (take (- n 1) (rest lst)))))")) [];;
-let take = eval (parse (read "(define (drop n lst) (if (= 0 n) lst (drop (- n 1) (rest lst))))")) [];;
-let fibs = eval (parse (read "(define fibs (cons 0 (cons 1 (map2 + fibs (rest fibs)))))")) [];;
-let nth  = eval (parse (read "(define (nth lst n) (if (= n 0) (first lst) (nth (rest lst) (- n 1))))")) [];;
-let range = eval (parse (read "(define (range s n) (if (= s n) empty (cons s (range (+ s 1) n))))")) [];;
-let add1 = eval (parse (read "(define (add1 n) (+ n 1))")) [];;
-let sub1 = eval (parse (read "(define (sub1 n) (- n 1))")) [];;
-
 (*print: abstractSyntax -> string
 Input: an abstractSyntax 
 output: add quotes to the input*)
@@ -192,6 +183,7 @@ let rec print (input:value) :string =
 		|ConsV(f,r) -> (print f)^" "^(p r)
 		|EmptyV -> ")"
 		|ComputedV(v) -> p (!v)
+		|SuspendV(sus,e) -> (print v)^")"
 		|other -> ". "^(print other)^")") in "(list "^(p input)
 	|ComputedV(v) -> print (!v)
 	|EmptyV -> "empty";;	
@@ -204,27 +196,28 @@ interp: basically a program writte in ocaml to imitate Racket language*)
 let interp (input:string) : string =
 	print (eval (parse (read input)) []);;
 let rec racketteRepl parse eval display =
-  Printf.printf "Rackette > " ;
-    (*(try*)
+  Printf.printf "Lazy Rackette > " ;
+    (try
 	match read_line () with
 	|"exit" -> exit 1
 	|line -> Printf.printf "%s\n" (display (eval (parse (read line)) [])) 
-    (*with
+    with
       | e -> (match e with 
         | Failure(str) -> Printf.printf "Error: %s\n" str
-        | _ -> Printf.printf "Error: %s\n" "Other exception failure" ))*);
+        | _ -> Printf.printf "Error: %s\n" "Other exception failure" ));
       (racketteRepl parse eval display);;
 
 let repl = (fun ()-> racketteRepl parse eval print);;
 
 
-interp "((let ((x (lambda (x) (+ x x)))) x) 3)" = "6";;
-interp "((if (= 2 2) (lambda (x) (+ 3 x)) *) 5)" = "8";;
-interp "((if true + *) 3 4)" = "7";;
-interp "(((lambda (x) +) 16) 5 6)" = "11";;
-interp "(((lambda (x) (lambda (x) (+ x x))) 10) 3)"="6";;
-interp "(let ((x 10)) (let ((x 1045)) (+ x x)))" = "2090";;
-interp "(let ((x 1000)) (((lambda (y) (if (= x y) - +)) 4) 200 100))"="300";;
-interp "((lambda (x) ((lambda (y) y) 10)) (+ 4 true))";;
+let map  = eval (parse (read"(define (map fun lst) (if (empty? lst) empty (cons (fun (first lst)) (map fun (rest lst)))))")) [];;
+let map2 = eval (parse (read "(define (map2 fun lst1 lst2) (if (empty? lst1) empty (cons (fun (first lst1) (first lst2)) (map2 fun (rest lst1) (rest lst2)))))")) [];;
+let take = eval (parse (read "(define (take n lst) (if (= 0 n) empty (cons (first lst) (take (- n 1) (rest lst)))))")) [];;
+let take = eval (parse (read "(define (drop n lst) (if (= 0 n) lst (drop (- n 1) (rest lst))))")) [];;
+let fibs = eval (parse (read "(define fibs (cons 0 (cons 1 (map2 + fibs (rest fibs)))))")) [];;
+let nth  = eval (parse (read "(define (nth lst n) (if (= n 0) (first lst) (nth (rest lst) (- n 1))))")) [];;
+let range = eval (parse (read "(define (range s n) (if (= s n) empty (cons s (range (+ s 1) n))))")) [];;
+let add1 = eval (parse (read "(define (add1 n) (+ n 1))")) [];;
+let sub1 = eval (parse (read "(define (sub1 n) (- n 1))")) [];;
 
 repl ();;

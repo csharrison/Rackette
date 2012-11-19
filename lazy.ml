@@ -67,14 +67,12 @@ let rec parse (input : quotedSyntax) : expr =
 		|_ -> failwith "error at parse level!";;
 
 
-let make_prim2 str = (str, ClosureV(["x";"y"], Prim2(str, Sym("x"), Sym("y")), []));;
-let make_prim1 str = (str, ClosureV(["x"], Prim1(str, Sym("x")), []));;
+let make_prim2 str = ClosureV(["x";"y"], Prim2(str, Sym("x"), Sym("y")), []);;
+let make_prim1 str = ClosureV(["x"], Prim1(str, Sym("x")), []);;
 
-let global_env = ref
-((List.map make_prim2 ["+";"-";"*";"/";"="; "<"; ">"])@
-(List.map make_prim1 ["first";"rest"; "print";"empty?"; "cons?"; "not" ; "bool"]));;
-
-
+let global_env = Hashtbl.create 30;;
+(List.map (fun x-> Hashtbl.replace global_env x (make_prim2  x)) ["+";"-";"*";"/";"="; "<"; ">"]);;
+(List.map (fun x-> Hashtbl.replace global_env x (make_prim1  x)) ["first";"rest"; "print";"empty?"; "cons?"; "not" ; "bool"]);;
 
 let rec lookup (id : string) (environment : env) : value option = 
 	match environment with
@@ -121,10 +119,10 @@ and	eval ?(global=false) (input: expr) (e : env) : value =
 	match input with
 		|Int(x) -> NumV(x)
 		|Bool (x) -> BoolV(x)
-		|Sym a -> (match lookup a e with
-					|None -> (match lookup a !global_env with
-								|None -> failwith ("unbound identifier "^a)
-								|Some(v) -> v)
+		|Sym a -> (match (lookup a e) with
+					|None -> (match (Hashtbl.find_all global_env a) with
+								|hd::tl -> hd
+								|[] -> failwith ("unbound identifier "^a))
 					|Some(v) -> v)
 		|Cons(x,y) -> ConsV(ComputedV(ref (SuspendV (x, e))), ComputedV(ref (SuspendV(y, e))))
 		|Empty -> EmptyV
@@ -175,7 +173,7 @@ and	eval ?(global=false) (input: expr) (e : env) : value =
 		|Define(name, expr) -> 
 			if global then
 				let value = (eval expr e) in
-				(begin global_env := (name, value)::!global_env ; value end)
+				(begin Hashtbl.replace global_env name value; value end)
 			else failwith "define construct only allowed in toplevel"
 		|App(func, args) -> 
 			(match strict (eval func e) with
@@ -235,4 +233,3 @@ let nth  = interp "(define (nth lst n) (if (= n 0) (first lst) (nth (rest lst) (
 let range = interp "(define (range s n) (if (= s n) empty (cons s (range (+ s 1) n))))";;
 let add1 = interp "(define (add1 n) (+ n 1))";;
 let sub1 = interp "(define (sub1 n) (- n 1))";;
-

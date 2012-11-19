@@ -1,0 +1,10 @@
+(define (append l1 l2)
+	(if (empty? l1)
+		l2
+		(cons (first l1) (append (rest l1) l2))))
+
+(define (subsets lst)
+	(if (empty? lst)
+		(list (list))
+		(let ((r (subsets (rest lst))))
+			(append (map (lambda (x) (cons (first lst) x)) r) r))))

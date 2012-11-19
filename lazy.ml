@@ -98,7 +98,7 @@ let rec strict ?(really=false) (v : value) : value =
 			begin
 				value_ref := strict ~really:really (eval b e); !value_ref
 			end
-		|other -> other)
+		|other -> strict ~really:really other)
 	|SuspendV(body, e) -> failwith "SuspendV should be wraped in a ComputedV"
 
 and bool_eval (inp : value) : value =

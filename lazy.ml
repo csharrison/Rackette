@@ -38,7 +38,7 @@ let extract_ids sym_lst : (string list) =
 	input: a quoted syntax expression from "read"
 	output: the quoted syntax converted to rackettes abstract
 	internal representation *)
-let rec parse ?(g = false) (input : quotedSyntax) : expr =
+let rec parse (input : quotedSyntax) : expr =
 	match input with
 		|Number(x) -> Int(x)
 		|Symbol(s) ->(match s with
@@ -72,7 +72,7 @@ let make_prim1 str = (str, ClosureV(["x"], Prim1(str, Sym("x")), []));;
 
 let global_env = ref
 ((List.map make_prim2 ["+";"-";"*";"/";"="; "<"; ">"])@
-(List.map make_prim1 ["first";"rest"; "print";"empty?"; "cons?"; "not"]));;
+(List.map make_prim1 ["first";"rest"; "print";"empty?"; "cons?"; "not" ; "bool"]));;
 
 
 
@@ -102,11 +102,22 @@ let rec strict ?(really=false) (v : value) : value =
 			end
 		|other -> other)
 	|SuspendV(body, e) -> failwith "SuspendV should be wraped in a ComputedV"
+
+and bool_eval (inp : value) : value =
+	match (strict inp) with
+		|NumV(x) -> BoolV(x <> 0)
+		|BoolV(x) -> BoolV(x)
+		|ClosureV(ids, ex, e) -> BoolV(true)
+		|ConsV(x,y) -> BoolV(true)
+		|EmptyV -> BoolV(false)
+		|ComputedV(vref) -> bool_eval (!vref)
+		|SuspendV(body, e) -> failwith "shouldn't get here (strict)"
+
 (*eval: abstractSyntax-> 'a
     Input: an abstractSyntax called input
     Output: evaluate the abstractSyntax according to designed rules, do some calculation and produce the result in a datum of various possible forms 
 *)
-and	eval (input: expr) (e : env) : value =
+and	eval ?(global=false) (input: expr) (e : env) : value =
 	match input with
 		|Int(x) -> NumV(x)
 		|Bool (x) -> BoolV(x)
@@ -117,27 +128,30 @@ and	eval (input: expr) (e : env) : value =
 					|Some(v) -> v)
 		|Cons(x,y) -> ConsV(ComputedV(ref (SuspendV (x, e))), ComputedV(ref (SuspendV(y, e))))
 		|Empty -> EmptyV
-		|Prim1(p, x) -> 
-			(match strict (eval x e) with
-				|EmptyV ->
-					(match p with
-						|"empty?" -> BoolV(true)
-						|"cons?" -> BoolV(false)
-						|"print" -> EmptyV
-						|_ -> failwith "bad primop for empty list")
-				|ConsV(first,rest) ->
-					(match p with
-						|"first" -> first
-						|"rest" -> rest
-						|"empty?" -> BoolV(false)
-						|"cons?" -> BoolV(true)
-						|"print" -> ConsV(strict ~really:true first, strict ~really:true rest)
-						|rest -> failwith "bad primop for lists")
-				|BoolV(v) ->
-					(match p with
-						|"not" -> BoolV(not v)
-						|_ -> failwith "bad primop for booleans")
-				|_ -> failwith "bad arguments for prim func")
+		|Prim1(p, x) ->
+			let v = strict (eval x e) in
+			(match p with
+				|"print" -> strict ~really:true v
+				|"not" -> (match (bool_eval v) with
+							|BoolV(x) -> BoolV(not x)
+							|_ -> failwith "bool_eval should return a boolean")
+				|"bool" -> bool_eval v
+				|"empty?" | "cons?" | "first" | "rest" -> 
+					(match v with
+					|EmptyV -> 
+						(match p with
+							|"empty?" -> BoolV(true)
+							|"cons?" -> BoolV(false)
+							|_ -> failwith ("bad operation, "^p^" on empty list"))
+					|ConsV(first,rest) ->
+						(match p with
+							|"empty?" -> BoolV(false)
+							|"cons?" -> BoolV(true)
+							|"first" -> first
+							|"rest" -> rest
+							|_ -> failwith ("bad operation, "^p^" on a cons"))
+					|_ -> failwith ("list operation "^p^" applied to nonlist: "^(print v)))
+				|_ -> failwith ("unknown operation: "^p))
 		|Prim2(p,x,y) -> 
 			(match (strict (eval x e),strict (eval y e)) with
             |(NumV(i),NumV(j)) -> 
@@ -159,19 +173,21 @@ and	eval (input: expr) (e : env) : value =
 			if (eval predicate e)=BoolV(true) then eval true_clause e else eval else_clause e
 		|Lambda(id_lst,expr) -> ClosureV(id_lst,expr,e)
 		|Define(name, expr) -> 
-			let value = (eval expr e) in
-			(begin global_env := (name, value)::!global_env ; value end)
+			if global then
+				let value = (eval expr e) in
+				(begin global_env := (name, value)::!global_env ; value end)
+			else failwith "define construct only allowed in toplevel"
 		|App(func, args) -> 
 			(match strict (eval func e) with
 			|ClosureV(ids,body,clos_env) -> 
 				let new_environment = (List.map2 (fun x y -> (x, ComputedV(ref (SuspendV(y,e))))) ids args)@clos_env in 
 				eval body new_environment
-			|_ -> failwith "only lambda procedures can take one arg!!!");;
+			|_ -> failwith "found a nonfunction in application position")
 
 (*print: abstractSyntax -> string
 Input: an abstractSyntax 
 output: add quotes to the input*)
-let rec print (input:value) :string =
+and print (input:value) :string =
 	match input with
 	|NumV(x) -> string_of_int x
 	|BoolV(x) -> string_of_bool x
@@ -180,11 +196,11 @@ let rec print (input:value) :string =
 	|ConsV(x,y) -> 
 		let rec p v = 
 		(match v with
-		|ConsV(f,r) -> (print f)^" "^(p r)
+		|ConsV(f,r) -> " "^(print f)^(p r)
 		|EmptyV -> ")"
-		|ComputedV(v) -> p (!v)
-		|SuspendV(sus,e) -> (print v)^")"
-		|other -> ". "^(print other)^")") in "(list "^(p input)
+		|ComputedV(v) -> (p (!v))
+		|SuspendV(sus,e) -> " "^(print v)^")"
+		|other -> ". "^(print other)^")") in "(list"^(p input)
 	|ComputedV(v) -> print (!v)
 	|EmptyV -> "empty";;	
 
@@ -193,8 +209,8 @@ let rec print (input:value) :string =
 input: a string that is a quoted expression in the Racket expression
 output: the result that is expected to be given by Racket with quotes  
 interp: basically a program writte in ocaml to imitate Racket language*)
-let interp (input:string) : string =
-	print (eval (parse (read input)) []);;
+let interp (input:string) : value =
+	(eval ~global:true (parse (read input)) []);;
 let rec racketteRepl parse eval display =
   Printf.printf "Lazy Rackette > " ;
     (try
@@ -207,17 +223,16 @@ let rec racketteRepl parse eval display =
         | _ -> Printf.printf "Error: %s\n" "Other exception failure" ));
       (racketteRepl parse eval display);;
 
-let repl = (fun ()-> racketteRepl parse eval print);;
+let repl = (fun ()-> racketteRepl parse (fun x -> eval ~global:true x) print);;
 
 
-let map  = eval (parse (read"(define (map fun lst) (if (empty? lst) empty (cons (fun (first lst)) (map fun (rest lst)))))")) [];;
-let map2 = eval (parse (read "(define (map2 fun lst1 lst2) (if (empty? lst1) empty (cons (fun (first lst1) (first lst2)) (map2 fun (rest lst1) (rest lst2)))))")) [];;
-let take = eval (parse (read "(define (take n lst) (if (= 0 n) empty (cons (first lst) (take (- n 1) (rest lst)))))")) [];;
-let take = eval (parse (read "(define (drop n lst) (if (= 0 n) lst (drop (- n 1) (rest lst))))")) [];;
-let fibs = eval (parse (read "(define fibs (cons 0 (cons 1 (map2 + fibs (rest fibs)))))")) [];;
-let nth  = eval (parse (read "(define (nth lst n) (if (= n 0) (first lst) (nth (rest lst) (- n 1))))")) [];;
-let range = eval (parse (read "(define (range s n) (if (= s n) empty (cons s (range (+ s 1) n))))")) [];;
-let add1 = eval (parse (read "(define (add1 n) (+ n 1))")) [];;
-let sub1 = eval (parse (read "(define (sub1 n) (- n 1))")) [];;
+let map  = interp "(define (map fun lst) (if (empty? lst) empty (cons (fun (first lst)) (map fun (rest lst)))))" ;;
+let map2 = interp "(define (map2 fun lst1 lst2) (if (empty? lst1) empty (cons (fun (first lst1) (first lst2)) (map2 fun (rest lst1) (rest lst2)))))";;
+let take = interp "(define (take n lst) (if (= 0 n) empty (cons (first lst) (take (- n 1) (rest lst)))))";;
+let drop = interp "(define (drop n lst) (if (= 0 n) lst (drop (- n 1) (rest lst))))";;
+let fibs = interp "(define fibs (cons 0 (cons 1 (map2 + fibs (rest fibs)))))";;
+let nth  = interp "(define (nth lst n) (if (= n 0) (first lst) (nth (rest lst) (- n 1))))";;
+let range = interp "(define (range s n) (if (= s n) empty (cons s (range (+ s 1) n))))";;
+let add1 = interp "(define (add1 n) (+ n 1))";;
+let sub1 = interp "(define (sub1 n) (- n 1))";;
 
-repl ();;

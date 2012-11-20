@@ -90,7 +90,8 @@ Primitive Procedures:
 	
 	- evaluates OCaml <,> procedures on numeric input
 
-(= <b>x</b> <b>y</b>) 
+(= <b>x</b> <b>y</b>)
+ 
 	- equality testing. Polymorphic.
 
 (first *lst*) 

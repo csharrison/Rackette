@@ -1,6 +1,6 @@
 #load "str.cma";;
 #use "../read.ml";;
-#use "lazy.ml";;
+#use "interp.ml";;
 
 let load_file f =
   let ic = open_in f in
@@ -33,10 +33,3 @@ let run file_name =
 	match read (read_file (load_file file_name)) with
 	|List(l) ->  (List.map (fun x-> (eval ~global:true (parse x) [] )) l)
 	|_-> failwith "syntax error";;
-
-let a =
-	for i = 1 to Array.length Sys.argv - 1 do
-		run Sys.argv.(i)
-	done;;
-
-repl ();;

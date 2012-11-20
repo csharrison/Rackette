@@ -75,38 +75,62 @@ empty
 
 	-the empty list
 
-(print *expr*) -> strictly evaluates *expr and prints it
+(print *expr*)
+	
+	- strictly evaluates *expr and prints it
+
 
 Primitive Procedures:
 =====================
-+ | / | * | - -> applies the corresponding OCaml function to the two inputs
++ , / , * 
+	
+	- applies the corresponding OCaml function to the two inputs
 
-> | < -> evaluates OCaml <,> procedures on numeric input
+> , <
+	
+	- evaluates OCaml <,> procedures on numeric input
 
-= -> equality testing. Polymorphic.
+= 
+	- equality testing. Polymorphic.
 
-(first *lst*) -> fetches the first element of the list (car)
+(first *lst*) 
+	
+	- fetches the first element of the list (car)
 
-(rest *lst*) -> fetches the rest of the list without the first element (cdr)
+(rest *lst*) 
+	
+	- fetches the rest of the list without the first element (cdr)
 
-(list *x* *y* ...) -> constructs the nested cons, terminating with an empty
+(list *x* *y* ...) 
+	
+	- constructs the nested cons, terminating with an empty
 
 Built in Procedures
 =====================
 (map *func* *lst1*) 
+
 	-returns the list of func applications on every element of lst1
+
 (map2 *func* *lst1* *lst2*)
+
 	-returns the list of func applications on corresponding elements of lst1 and lst2
+
 	-e.g. (map2 + (list 1 2 3) (list 4 5 6)) -> (list 5 6 7)
 
 (take *n* *lst*)
+
 	-takes the first n elements of the lst
+
 (drop *n* *lst*)
+
 	-drops the first n elements of the lst
 
 (sub1 *n*)
+
 	-returns n-1
+
 (add1 *n*) 
+
 	-returns n+1
 
 

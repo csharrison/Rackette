@@ -1,4 +1,4 @@
-#use "read.ml";;
+#use "../read.ml";;
 
 
 type expr =
@@ -235,3 +235,5 @@ let nth  = interp "(define (nth lst n) (if (= n 0) (first lst) (nth (rest lst) (
 let range = interp "(define (range s n) (if (= s n) empty (cons s (range (+ s 1) n))))";;
 let add1 = interp "(define (add1 n) (+ n 1))";;
 let sub1 = interp "(define (sub1 n) (- n 1))";;
+
+repl();;

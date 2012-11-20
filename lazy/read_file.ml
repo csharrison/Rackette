@@ -1,5 +1,5 @@
 #load "str.cma";;
-#use "read.ml";;
+#use "../read.ml";;
 #use "lazy.ml";;
 
 let load_file f =

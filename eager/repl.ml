@@ -1,4 +1,4 @@
-#use "read.ml";;
+#use "../read.ml";;
 #use "interp.ml";;
 
 let rec racketteRepl parse eval display =

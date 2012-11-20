@@ -1,4 +1,4 @@
-#use "read.ml";;
+#use "../read.ml";;
 type abstractSyntax =
 | Sym of string | Int of int | Bool of bool
 | Sum | Difference | Quotient | Product 
@@ -10,29 +10,12 @@ type abstractSyntax =
 | Proc of abstractSyntax*abstractSyntax*abstractSyntax (*common operations - built in proc application *)
 | LProc of abstractSyntax*abstractSyntax;; (* anon procedure application *)
 
-(*
-let id = ref 0 in 
-let make_id : int = 
-    begin
-        id := !id + 1 ; 
-        !id
-    end ;;
-*)
-let rec 
-    cascade_lambdas (id_lst :  quotedSyntax list) (body : quotedSyntax) : abstractSyntax = 
-    match id_lst with
-    |[] -> failwith "no thunks yet"
-    |[one] -> Lambda(parse one, parse body)
-    |hd::tl -> Lambda(parse hd, cascade_lambdas tl body)
-(*
-    ((lambda (x y) (+ x y)) 10 20) ->
-    (((lambda (x) (lambda (y) (+ x y))) 10) 20)
-*)
+
 (*parse
 	input: a quoted syntax expression from "read"
 	output: the quoted syntax converted to rackettes abstract
 	internal representation*)
-and parse (input : quotedSyntax) : abstractSyntax =
+let rec parse (input : quotedSyntax) : abstractSyntax =
 	match input with
 		|Number(x) -> Int(x)
 		|Symbol(s) ->(match s with

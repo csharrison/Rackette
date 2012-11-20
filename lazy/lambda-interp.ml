@@ -1,12 +1,10 @@
-#use "read.ml";;
+#use "../read.ml";;
 
 
 type expr =
 | Sym of string 
 | Int of int 
-(*boolean + comparator stuff*)
 | Binop of string (* string = / + * - *)
-(*fancy syntax stuff*)
 | Lambda of string*expr
 | Proc of expr*expr*expr (*common operations - built in proc application *)
 | LProc of expr*expr;; (* anon procedure application *)

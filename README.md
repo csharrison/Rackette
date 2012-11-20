@@ -14,47 +14,48 @@ Enjoy!
 Spec (in progress)
 ==================
 <b>these are identifiers</b>
+
 *these are expression*
 
-expressions =
-|(define (^func-name ^arg1 ^arg2 ...) *body*) 
+*expressions* =
+(define (<b>id</b> ^arg1 ^arg2 ...) *body*) 
 	- binds func-name to the resulting function (taking in arg1 ...)
 	- works only in toplevel
 	- introduces global (and therefore recursive) bindings
 
-|(define ^name *expr*) 
+(define <b>id</b> *expr*) 
 	-binds name to expr
 	-the previous definition of define desugars to this: (define func-name (lambda (arg1 ...) body))
 
 
-|(lambda (^x ...) *body*)
+(lambda (<b>x</b>...) *body*)
 	- creates an anonymous procedure
 
-|(*func* *arg1* *arg2* ...)
+(*func* *arg1* *arg2* ...)
 	-evaluates func with the given arguments
 	-lazily evaluates arguments on a need basis
 
 
-|(let ((^id *val*) (^id *val2*) ...) *body*) 
+(let ((<b>id</b> *val*) (<b>id2</b> *val2*) ...) *body*) 
 	- binds identifiers to values in body
 
-|(if *cond* *then* *else*)
+(if *cond* *then* *else*)
 	- evaluates cond to a boolean, then branches depending on the truth of the result
 	- nonbooleans branch based on the result of the primitive procedure "bool"
 
-|(and *expr1* *expr2*) 
+(and *expr1* *expr2*) 
 	- returns the result of (bool expr)^(bool expr)
 	- short circuits
-|(or *expr1* *expr2*)
+(or *expr1* *expr2*)
 	- returns (bool expr)|(bool expr)
 	-short circuits
 
-|(cons *x* *y*) 
+(cons *x* *y*) 
 	-constructs a pair, normally used to construct lists ending with empty
-|empty
+empty
 	-the empty list
 
-|(print *expr*) -> strictly evaluates *expr and prints it
+(print *expr*) -> strictly evaluates *expr and prints it
 
 Primitive Procedures:
 =====================

@@ -193,14 +193,16 @@ and print (input:value) :string =
 	|BoolV(x) -> string_of_bool x
 	|ClosureV(ids,expr,e) -> "(lambda ( "^(List.fold_right (fun x r -> x^" "^r) ids "")^")...)"
 	|SuspendV(b, e) -> "<~suspended~>"
-	|ConsV(x,y) -> "(cons "^(print x)^" "^(print y)^")"
-		(*let rec p v = 
-		(match v with
-		|ConsV(f,r) -> " "^(print f)^(p r)
-		|EmptyV -> ")"
+	|ConsV(SuspendV(b,e), SuspendV(c,f)) -> "<~suspended~>"
+	|ConsV(x,y) -> 
+		let rec p v = 
+		(match v with 
+		|ConsV(f,EmptyV) -> (print f)
+		|ConsV(f,r) -> (print f)^" "^(p r)
+		|EmptyV -> ""
 		|ComputedV(v) -> (p (!v))
-		|SuspendV(sus,e) -> " "^(print v)^")"
-		|other -> ". "^(print other)^")") in "(list"^(p input) *)
+		|SuspendV(sus,e) -> (print v)
+		|other -> ". "^(print other)) in "'("^(p input)^")"
 	|ComputedV(v) -> print (!v)
 	|EmptyV -> "empty";;	
 

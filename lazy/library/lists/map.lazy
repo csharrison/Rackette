@@ -1,0 +1,11 @@
+(define (map fun lst) 
+	(if (empty? lst) 
+		empty 
+		(cons (fun (first lst)) (map fun (rest lst)))))
+
+
+(define (map2 fun lst1 lst2) 
+	(if (empty? lst1) 
+		empty 
+		(cons (fun (first lst1) (first lst2)) 
+			  (map2 fun (rest lst1) (rest lst2)))))

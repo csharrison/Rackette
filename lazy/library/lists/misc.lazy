@@ -1,0 +1,13 @@
+(define (range s n) 
+	(if (= s n) 
+	empty 
+	(cons s (range (+ s 1) n))))
+
+
+(define fibs (cons 0 (cons 1 (map2 + fibs (rest fibs)))))
+
+(define (nth lst n) 
+	(if (= n 0) 
+		(first lst) 
+		(nth (rest lst) (- n 1))))
+

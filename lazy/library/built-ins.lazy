@@ -1,35 +1,9 @@
-(define (map fun lst) 
-	(if (empty? lst) 
-		empty 
-		(cons (fun (first lst)) (map fun (rest lst)))))
-
-
-(define (map2 fun lst1 lst2) 
-	(if (empty? lst1) 
-		empty 
-		(cons (fun (first lst1) (first lst2)) 
-			  (map2 fun (rest lst1) (rest lst2)))))
-(define (take n lst) 
-	(if (= 0 n) 
-	empty 
-	(cons (first lst) (take (- n 1) (rest lst)))))
-
-(define (drop n lst) 
-	(if (= 0 n) 
-	lst 
-	(drop (- n 1) (rest lst))))
-
-(define fibs (cons 0 (cons 1 (map2 + fibs (rest fibs)))))
-
-(define (nth lst n) 
-	(if (= n 0) 
-		(first lst) 
-		(nth (rest lst) (- n 1))))
-
-(define (range s n) 
-	(if (= s n) 
-	empty 
-	(cons s (range (+ s 1) n))))
 
 (define (add1 n) (+ n 1))
 (define (sub1 n) (- n 1))
+
+(define (! n)
+	(if (= n 0)
+		1
+		(* n (! (- n 1)))))
+

@@ -19,7 +19,7 @@ Spec (in progress)
 
 *expressions* =
 
-(define (<b>id</b> ^arg1 ^arg2 ...) *body*) 
+(define (<b>id</b> <b>arg1</b> <b>arg2</b> ...) *body*) 
 
 	- binds func-name to the resulting function (taking in arg1 ...)
 
@@ -29,9 +29,9 @@ Spec (in progress)
 
 (define <b>id</b> *expr*) 
 
-	-binds name to expr
+	- binds name to expr
 
-	-the previous definition of define desugars to this: (define func-name (lambda (arg1 ...) body))
+	- the previous definition of define desugars to this: (define func-name (lambda (arg1 ...) body))
 
 
 (lambda (<b>x</b>...) *body*)
@@ -65,15 +65,15 @@ Spec (in progress)
 
 	- returns (bool expr)|(bool expr)
 
-	-short circuits
+	- short circuits
 
 (cons *x* *y*) 
 
-	-constructs a pair, normally used to construct lists ending with empty
+	- constructs a pair, normally used to construct lists ending with empty
 
 empty
 
-	-the empty list
+	- the empty list
 
 (print *expr*)
 	
@@ -82,11 +82,11 @@ empty
 
 Primitive Procedures:
 =====================
-+ , / , * 
+(binop <b>x</b> <b>y</b>) with binop = + , / , * 
 	
 	- applies the corresponding OCaml function to the two inputs
 
-> , <
+(comparator <b>x</b> <b>y</b>) \>, \<
 	
 	- evaluates OCaml <,> procedures on numeric input
 
@@ -109,29 +109,29 @@ Built in Procedures
 =====================
 (map *func* *lst1*) 
 
-	-returns the list of func applications on every element of lst1
+	- returns the list of func applications on every element of lst1
 
 (map2 *func* *lst1* *lst2*)
 
-	-returns the list of func applications on corresponding elements of lst1 and lst2
+	- returns the list of func applications on corresponding elements of lst1 and lst2
 
-	-e.g. (map2 + (list 1 2 3) (list 4 5 6)) -> (list 5 6 7)
+	- e.g. (map2 + (list 1 2 3) (list 4 5 6)) -> (list 5 6 7)
 
 (take *n* *lst*)
 
-	-takes the first n elements of the lst
+	- takes the first n elements of the lst
 
 (drop *n* *lst*)
 
-	-drops the first n elements of the lst
+	- drops the first n elements of the lst
 
 (sub1 *n*)
 
-	-returns n-1
+	- returns n-1
 
 (add1 *n*) 
 
-	-returns n+1
+	- returns n+1
 
 
 

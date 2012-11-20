@@ -1,17 +1,10 @@
 Rackette
 ========
-Charlie Harrison and Mengjie (Kelly) Wang
-A substitution based interpreter for the Racket language in OCaml
 
 
-instructions for use:
+
+Instructions for use:
 =====================
-
-An end-user comes in and types  **doit "EXPRESSION"** ,where EXPRESSION is a valid Rackette expression. For example, if he is going to type 
-			(let ((x 10)) (if (= x 20) 45 x))    in Racket, 
-in Rackette he should type 
-			doit "(let ((x 10)) (if (= x 20) 45 x))" ;;
-And the result will evaluate to 10.
 
 
 

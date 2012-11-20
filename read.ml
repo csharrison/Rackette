@@ -22,7 +22,7 @@ let string_to_int str =
 	with
 	  | e -> None;;
 
-let rec parse lols los = 
+let rec parse lols los : quotedSyntax= 
 match (lols, los) with
 |([[x]], []) -> x
 |(_,"("::tail) -> parse ([]::lols) tail

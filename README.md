@@ -18,41 +18,61 @@ Spec (in progress)
 *these are expression*
 
 *expressions* =
+
 (define (<b>id</b> ^arg1 ^arg2 ...) *body*) 
+
 	- binds func-name to the resulting function (taking in arg1 ...)
+
 	- works only in toplevel
+
 	- introduces global (and therefore recursive) bindings
 
 (define <b>id</b> *expr*) 
+
 	-binds name to expr
+
 	-the previous definition of define desugars to this: (define func-name (lambda (arg1 ...) body))
 
 
 (lambda (<b>x</b>...) *body*)
+
 	- creates an anonymous procedure
 
 (*func* *arg1* *arg2* ...)
+
 	-evaluates func with the given arguments
+
 	-lazily evaluates arguments on a need basis
 
 
 (let ((<b>id</b> *val*) (<b>id2</b> *val2*) ...) *body*) 
+
 	- binds identifiers to values in body
 
 (if *cond* *then* *else*)
+
 	- evaluates cond to a boolean, then branches depending on the truth of the result
+
 	- nonbooleans branch based on the result of the primitive procedure "bool"
 
 (and *expr1* *expr2*) 
+
 	- returns the result of (bool expr)^(bool expr)
+
 	- short circuits
+
 (or *expr1* *expr2*)
+
 	- returns (bool expr)|(bool expr)
+
 	-short circuits
 
 (cons *x* *y*) 
+
 	-constructs a pair, normally used to construct lists ending with empty
+
 empty
+
 	-the empty list
 
 (print *expr*) -> strictly evaluates *expr and prints it

@@ -1,25 +1,23 @@
-#use "../read.ml";;
+#use "../../read.ml";;
 
 
 type expr =
 | Sym of string 
-| Int of int 
-| Binop of string (* string = / + * - *)
 | Lambda of string*expr
-| Proc of expr*expr*expr (*common operations - built in proc application *)
 | LProc of expr*expr;; (* anon procedure application *)
 
 type 
 env = (string*value) list 
 and
 value = (* what exps evaluate to *)
-|NumV of int
 |ClosureV of string*expr*env
-|BinopV of string
 |SuspendV of expr*env;;
 
 let yes = Lambda("true", Lambda("false", Sym("true")));;
 let no  = Lambda("true", Lambda("false", Sym("false")));;
+
+let zero = Lambda("f", Lambda("x",Sym("x")));;
+let one = Lambda("f", Lambda("x", LProc(Sym("f"),Sym("x"))));;
 
 (*parse
 	input: a quoted syntax expression from "read"
@@ -27,17 +25,19 @@ let no  = Lambda("true", Lambda("false", Sym("false")));;
 	internal representation *)
 let rec parse (input : quotedSyntax) : expr =
 	match input with
-		|Number(x) -> Int(x)
+		|Number(x) -> 
+			let rec succ_it x = 
+			(match x with
+			|0 -> zero
+			|_ -> LProc(Sym("succ"), succ_it (x - 1))) in succ_it x
 		|Symbol(s) ->(match s with
 		              |"true" -> yes
 		              |"false" -> no
-		              |"=" -> Binop("=")
-		              |"+" -> Binop("+")
-		              |"-" -> Binop("-")
-		              |"/" -> Binop("/")
-		              |"*" -> Binop("*")
+		              |"+" -> Sym("plus")
+		              |"-" -> Sym("minus")
+		              |"*" -> Sym("mult")
 		              |any -> Sym(any))
-		(* do some tricky desugaring to get rid of And and Or 
+		(* do some tricky desugaring to get rid of And and Or +
 		|List([Symbol("and"); x ; y]) -> If(parse x , parse y, No)
 		|List([Symbol("or") ; x ; y]) -> If(parse x , Yes, parse y) *)
 		|List([Symbol("if");p;t_clause;e_clause]) -> 
@@ -48,8 +48,11 @@ let rec parse (input : quotedSyntax) : expr =
 		(* to deal with lambda application and Prim application*)
 		|List(Number(x)::rest) -> failwith "expected function, got type Integer"
 		|List[x;y]-> LProc(parse x, parse y)
-		|List([p;x;y])->Proc(parse p,parse x, parse y)
+		|List([p;x;y])-> LProc(LProc(parse p,parse x), parse y)
 		|_ -> failwith "error at parse level!";;
+
+
+
 
 let rec lookup (id : string) (environment : env) : value = 
 	match environment with
@@ -64,21 +67,16 @@ Input: an abstractSyntax
 output: add quotes to the input*)
 let rec print  suspend(input:value) :string =
 	match input with
-	|NumV(x) -> string_of_int x
 	|ClosureV(x,expr,e) -> "(lambda ("^x^")...)"
 	|SuspendV(b, e) -> if suspend then"...suspended computation..."
-						else print suspend (strict input) 
-	|BinopV(s) -> s
-
+						else print suspend (strict input)
 and
 
 (* given a value (possibly suspended computation),
  strict forces full evaluation to a "normal" value *)
 strict (v : value) : value =
 	match v with
-	|NumV(x) -> v
 	|ClosureV(id, ex, e) -> v
-	|BinopV(s) -> v
 	|SuspendV(body, e) -> strict (eval body e)
 (*eval: abstractSyntax-> 'a
     Input: an abstractSyntax called input
@@ -86,40 +84,37 @@ strict (v : value) : value =
 *)
 and	eval (input: expr) (e : env) : value =
 	match input with
-		|Int(x) -> NumV(x)
 		|Sym a -> lookup a e
-		|Binop(s) -> BinopV(s)
-		|Proc(p,x,y) -> 
-			(match (strict (eval x e),strict (eval y e)) with
-            |(NumV(i),NumV(j)) -> 
-	            (match strict (eval p e) with
-	            |BinopV("+") -> NumV(i+j)
-	            |BinopV("-") -> NumV(i-j)
-	            |BinopV("*") -> NumV(i*j)
-	            |BinopV("/") -> NumV(i/j)
-	            |BinopV("=") -> strict (eval (if i=j then yes else no) e)
-	            |a-> failwith ("function "^(print true a)^"got int arguments, expected other types"))
-            |_ -> failwith "the primitive procedure arguments are not recognized as primitives")
 		|Lambda(id,expr) -> ClosureV(id,expr,e)
-		|LProc(x,arg) -> 
+		|LProc(x,arg) ->
 			(match strict (eval x e) with
 			|ClosureV(id,body,clos_env) -> eval body (extend_environment clos_env id (SuspendV(arg, e)))
 			|_ -> failwith "only lambda procedures can take one arg!!!");;
 	
-	
 
+let succ = eval (parse (read "(lambda (n) (lambda (f) (lambda (x) (f ((n f) x)))))")) [];;
+let sum = eval (parse (read "(lambda (m) (lambda (n) ((n succ) m)))")) [("succ",succ)];;
+let mult = eval (parse (read "(lambda (m) (lambda (n) ((n (sum m)) 0)))")) [("succ",succ); ("sum",sum)];;
+let iszero = eval (parse (read "(lambda (n) ((n (lambda (ig) false)) true))")) [];;
+
+let e = [
+("succ", succ);
+("plus", sum);
+("mult" , mult);
+("iszero", iszero)
+];;
 (* interp: string -> string
 input: a string that is a quoted expression in the Racket expression
 output: the result that is expected to be given by Racket with quotes  
 interp: basically a program writte in ocaml to imitate Racket language*)
 let interp (input:string) : string =
-	print true (eval (parse (read input)) []);;
+	print true (eval (parse (read input)) e);;
 let rec racketteRepl parse eval display =
   Printf.printf "Rackette > " ;
     (try
 	match read_line () with
 	|"exit" -> exit 1
-	|line -> Printf.printf "%s\n" (display (eval (parse (read line)) [])) 
+	|line -> Printf.printf "%s\n" (display (eval (parse (read line)) e)) 
     with
       | e -> (match e with 
         | Failure(str) -> Printf.printf "Error: %s\n" str
@@ -127,7 +122,7 @@ let rec racketteRepl parse eval display =
       (racketteRepl parse eval display);;
 
 let repl suspend = racketteRepl parse eval (print suspend) ;;
-
+(*
 interp "((let ((x (lambda (x) (+ x x)))) x) 3)" = "6";;
 interp "((if (= 2 2) (lambda (x) (+ 3 x)) *) 5)" = "8";;
 interp "((if true + *) 3 4)" = "7";;
@@ -138,3 +133,5 @@ interp "(let ((x 1000)) (((lambda (y) (if (= x y) - +)) 4) 200 100))"="300";;
 
 
 interp "((lambda (x) ((lambda (y) y) 10)) (+ 4 true))";;
+*)
+repl false;;

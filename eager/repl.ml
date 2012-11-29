@@ -1,12 +1,12 @@
 #use "../read.ml";;
-#use "interp.ml";;
+#use "interp-env.ml";;
 
 let rec racketteRepl parse eval display =
   Printf.printf "Rackette > " ;
     (try
 	match read_line () with
 	|"exit" -> exit 1
-	|line -> Printf.printf "%s\n" (display (eval (parse (read line)))) 
+	|line -> Printf.printf "%s\n" (display (eval (parse (read line)) [])) 
     with
       | e -> (match e with 
         | Failure(str) -> Printf.printf "Error: %s\n" str

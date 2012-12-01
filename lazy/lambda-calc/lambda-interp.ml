@@ -15,9 +15,7 @@ value = (* what exps evaluate to *)
 
 let yes = Lambda("true", Lambda("false", Sym("true")));;
 let no  = Lambda("true", Lambda("false", Sym("false")));;
-
 let zero = Lambda("f", Lambda("x",Sym("x")));;
-let one = Lambda("f", Lambda("x", LProc(Sym("f"),Sym("x"))));;
 
 (*parse
 	input: a quoted syntax expression from "read"
@@ -103,12 +101,7 @@ let e = [
 ("mult" , mult);
 ("iszero", iszero)
 ];;
-(* interp: string -> string
-input: a string that is a quoted expression in the Racket expression
-output: the result that is expected to be given by Racket with quotes  
-interp: basically a program writte in ocaml to imitate Racket language*)
-let interp (input:string) : string =
-	print true (eval (parse (read input)) e);;
+
 let rec racketteRepl parse eval display =
   Printf.printf "Rackette > " ;
     (try
@@ -122,16 +115,5 @@ let rec racketteRepl parse eval display =
       (racketteRepl parse eval display);;
 
 let repl suspend = racketteRepl parse eval (print suspend) ;;
-(*
-interp "((let ((x (lambda (x) (+ x x)))) x) 3)" = "6";;
-interp "((if (= 2 2) (lambda (x) (+ 3 x)) *) 5)" = "8";;
-interp "((if true + *) 3 4)" = "7";;
-interp "(((lambda (x) +) 16) 5 6)" = "11";;
-interp "(((lambda (x) (lambda (x) (+ x x))) 10) 3)"="6";;
-interp "(let ((x 10)) (let ((x 1045)) (+ x x)))" = "2090";;
-interp "(let ((x 1000)) (((lambda (y) (if (= x y) - +)) 4) 200 100))"="300";;
 
-
-interp "((lambda (x) ((lambda (y) y) 10)) (+ 4 true))";;
-*)
 repl false;;

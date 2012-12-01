@@ -5,6 +5,7 @@ type abstractSyntax =
 (*fancy syntax stuff*)
 | If of abstractSyntax * abstractSyntax * abstractSyntax
 | Lambda of string * abstractSyntax
+| Rec of string * string * abstractSyntax * abstractSyntax
 | Proc of abstractSyntax * abstractSyntax*abstractSyntax (*common operations - built in proc application *)
 | LProc of abstractSyntax * abstractSyntax;; (* anon procedure application *)
 
@@ -36,6 +37,7 @@ let rec parse (input : quotedSyntax) : abstractSyntax =
 		|List([Symbol("if");p;t_clause;e_clause]) -> If(parse p, parse t_clause, parse e_clause)		
 
 		|List([Symbol "lambda" ; List([Symbol(id)]); expr]) -> Lambda(id, parse expr)
+		|List([Symbol "rec" ; List([Symbol(func) ; Symbol(id)]); expr ; body]) -> Rec(func, id, parse expr, parse body)
 		|List([Symbol("let"); List[List[Symbol(id);ex]] ; expr]) -> LProc(Lambda(id, parse expr), parse ex)
 
 		|List([x;y])-> LProc(parse x, parse y)
@@ -73,6 +75,13 @@ let rec	eval (input: abstractSyntax) (env : environment) : value =
 				|_ -> failwith "the primitive procedure arguments are not recognized as primitives")
 		|If(pred,tr,el) -> eval (if eval pred env = BoolV(true) then tr else el) env
 		|Lambda(id,expr) -> ClosureV(id,expr,env)
+		|Rec(func, id, expr, body) -> 
+			(*the weirdness, we recursively defined an environment in terms of itself
+				this might be a too hacky (in terms of the students actually figuring out how this is working)
+				but I think it's cool
+			*)
+			let rec extended = (func, ClosureV(id,expr, extended))::env in eval body extended
+
 		|LProc(proc,arg) -> 
 			(match (eval proc env) with
 			|ClosureV(id,expr,clos_env) -> let a = (eval arg env) in eval expr ((id, a)::clos_env)
@@ -112,3 +121,6 @@ doit "(((lambda (x) (lambda (x) (+ x x))) 10) 3)"="6";;
 doit "(let ((x 10)) (let ((x 1045)) (+ x x)))" = "2090";;
 doit "(let ((x 1000)) (((lambda (y) (if (= x y) - +)) 4) 200 100))"="300";;
 
+
+
+doit "(rec (f n) (if (= n 0) 1 (* n (f (- n 1)))) (f 5))" = "120";;

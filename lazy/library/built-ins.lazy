@@ -6,4 +6,4 @@
 	(if (= n 0)
 		1
 		(* n (! (- n 1)))))
-
+(define (quit) (exit 0))

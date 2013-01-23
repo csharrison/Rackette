@@ -72,7 +72,7 @@ let make_prim1 str = ClosureV(["x"], Prim1(str, Sym("x")), []);;
 
 let global_env = Hashtbl.create 30;;
 (List.map (fun x-> Hashtbl.replace global_env x (make_prim2  x)) ["+";"-";"*";"/";"="; "<"; ">"]);;
-(List.map (fun x-> Hashtbl.replace global_env x (make_prim1  x)) ["first";"rest"; "print";"empty?"; "cons?"; "not" ; "bool"]);;
+(List.map (fun x-> Hashtbl.replace global_env x (make_prim1  x)) ["first";"rest"; "print"; "exit" ; "empty?"; "cons?"; "not" ; "bool"]);;
 
 let rec lookup (id : string) (environment : env) : value option = 
 	match environment with
@@ -129,6 +129,9 @@ and	eval ?(global=false) (input: expr) (e : env) : value =
 		|Prim1(p, x) ->
 			let v = strict (eval x e) in
 			(match p with
+				|"exit" -> (match v with 
+							|NumV(n) -> exit n
+							|_ -> failwith "exit takes a number argument")
 				|"print" -> strict ~really:true v
 				|"not" -> (match (bool_eval v) with
 							|BoolV(x) -> BoolV(not x)

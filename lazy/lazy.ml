@@ -5,7 +5,6 @@ let rec racketteRepl parse eval display =
   Printf.printf "Lazy Rackette > " ;
     (try
   	match read_line () with
-  	|"exit" -> exit 1
   	|line -> Printf.printf "%s\n" (display (eval (parse (read line)) [])) 
     with
       | e -> (match e with 

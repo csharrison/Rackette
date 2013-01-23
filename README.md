@@ -7,7 +7,7 @@ Instructions:
 =====================
 To run the REPL, run "ocaml lazy.ml" (in the lazy directory).
 
-To evaluate a file, run "ocaml read_file *filepath*" which will create the top level bindings for your program and let you use them in a REPL.
+To evaluate a file, run "ocaml lazy *path*" which will create the top level bindings for your program and let you use them in a REPL.
 
 Enjoy!
 

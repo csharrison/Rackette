@@ -5,7 +5,7 @@ let rec racketteRepl parse eval display =
   Printf.printf "Lazy Rackette > " ;
     (try
   	match read_line () with
-  	|line -> Printf.printf "%s\n" (display (eval (parse (read line)) [])) 
+  	|line -> Printf.printf " -- ans = %s\n" (display (eval (parse (read line)) [])) 
     with
       | e -> (match e with 
         | Failure(str) -> Printf.printf "Error: %s\n" str
@@ -15,6 +15,7 @@ let rec racketteRepl parse eval display =
 let repl = (fun ()-> racketteRepl parse (fun x -> eval ~global:true x) print);;
 
 
+(* finds and executes all .lazy files in the library for use in repl and program *)
 let rec traverse path = 
 	let rec find_files (files : string array) i : string list= 
 		if i >= (Array.length files) then [] else

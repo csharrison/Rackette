@@ -67,9 +67,11 @@ let rec parse (input : quotedSyntax) : expr =
 		|_ -> failwith "error at parse level!";;
 
 
+(* helper functions for making primitive ops*)
 let make_prim2 str = ClosureV(["x";"y"], Prim2(str, Sym("x"), Sym("y")), []);;
 let make_prim1 str = ClosureV(["x"], Prim1(str, Sym("x")), []);;
 
+(* the global environment, where built in functions go *)
 let global_env = Hashtbl.create 30;;
 (List.map (fun x-> Hashtbl.replace global_env x (make_prim2  x)) ["+";"-";"*";"/";"="; "<"; ">"]);;
 (List.map (fun x-> Hashtbl.replace global_env x (make_prim1  x)) ["first";"rest"; "print"; "exit" ; "empty?"; "cons?"; "not" ; "bool"]);;
@@ -132,7 +134,9 @@ and	eval ?(global=false) (input: expr) (e : env) : value =
 				|"exit" -> (match v with 
 							|NumV(n) -> exit n
 							|_ -> failwith "exit takes a number argument")
-				|"print" -> strict ~really:true v
+				|"print" -> let printable = strict ~really:true v in
+							Printf.printf "%s\n" (print printable) ; 
+							printable
 				|"not" -> (match (bool_eval v) with
 							|BoolV(x) -> BoolV(not x)
 							|_ -> failwith "bool_eval should return a boolean")

@@ -34,7 +34,3 @@ let a =
 	for i = 1 to Array.length Sys.argv - 1 do
 		a:=run Sys.argv.(i)
 	done;;
-
-if Array.length Sys.argv > 1 then repl () else ();;
-
-repl ();;

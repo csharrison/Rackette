@@ -8,3 +8,6 @@
 		(list (list))
 		(let ((r (subsets (rest lst))))
 			(append (map (lambda (x) (cons (first lst) x)) r) r))))
+
+(print (subsets (list 1 2 3 4)))
+(print (subsets empty))

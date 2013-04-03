@@ -5,9 +5,9 @@ A lazy language written in OCaml
 
 Instructions:
 =====================
-To run the REPL, run "ocaml lazy.ml" (in the lazy directory).
+To run the REPL, run "ocaml repl.ml" (in the lazy directory).
 
-To evaluate a file, run "ocaml lazy *path*" which will create the top level bindings for your program and let you use them in a REPL.
+To evaluate a file, run "ocaml lazy.ml *path*". To create top level bindings for your REPL, run "ocaml repl.ml *path*".
 
 Enjoy!
 
